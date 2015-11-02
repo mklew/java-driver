@@ -51,6 +51,7 @@ abstract class SchemaParser {
                  Connection connection, VersionNumber cassandraVersion)
         throws ConnectionException, BusyConnectionException, ExecutionException, InterruptedException {
 
+        /*
         SystemRows rows = fetchSystemRows(metadata, targetType, targetKeyspace, targetName, targetSignature, connection, cassandraVersion);
 
         metadata.lock.lock();
@@ -105,6 +106,7 @@ abstract class SchemaParser {
         } finally {
             metadata.lock.unlock();
         }
+        */
     }
 
     private Map<String, KeyspaceMetadata> buildKeyspaces(Metadata metadata,
