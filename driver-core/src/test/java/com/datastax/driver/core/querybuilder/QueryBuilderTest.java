@@ -864,22 +864,22 @@ public class QueryBuilderTest {
     public void should_not_serialize_raw_query_values() {
         RegularStatement select = builder.select().from("test").where(gt("i", raw("1")));
         assertThat(select.getQueryString()).doesNotContain("?");
-        assertThat(select.getValues()).isNull();
+        assertThat(select.getValues()).isEmpty();
     }
 
-    @Test(groups = "unit", expectedExceptions = { IllegalStateException.class })
-    public void should_throw_ISE_if_getObject_called_on_statement_without_values() {
+    @Test(groups = "unit", expectedExceptions = { IllegalArgumentException.class })
+    public void should_throw_IAE_if_getObject_called_on_statement_without_values() {
         builder.select().from("test").where(eq("foo", 42)).getObject(0); // integers are appended to the CQL string
     }
 
-    @Test(groups = "unit", expectedExceptions = { IndexOutOfBoundsException.class })
-    public void should_throw_IOOBE_if_getObject_called_with_wrong_index() {
-        builder.select().from("test").where(eq("foo", new Object())).getObject(1);
+    @Test(groups = "unit", expectedExceptions = { IllegalArgumentException.class })
+    public void should_throw_IAE_if_getObject_called_with_wrong_index() {
+        builder.select().from("test").where(eq("foo", new Date())).getObject(1);
     }
 
     @Test(groups = "unit")
     public void should_return_object_at_ith_index() {
-        Object expected = new Object();
+        Object expected = new Date();
         Object actual = builder.select().from("test").where(eq("foo", expected)).getObject(0);
         assertThat(actual).isSameAs(expected);
     }

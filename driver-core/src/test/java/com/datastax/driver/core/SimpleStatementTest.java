@@ -16,6 +16,7 @@
 package com.datastax.driver.core;
 
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 
 import org.testng.annotations.BeforeClass;
@@ -28,39 +29,50 @@ import static org.mockito.Mockito.when;
 
 public class SimpleStatementTest {
 
-    Cluster cluster;
-    CodecRegistry codecRegistry = new CodecRegistry();
+    Cluster mockCluster;
 
     @BeforeClass(groups = "unit")
     public void setup() {
-        cluster = mock(Cluster.class);
+        CodecRegistry codecRegistry = new CodecRegistry();
+        mockCluster = mock(Cluster.class);
         Configuration configuration = mock(Configuration.class);
-        when(cluster.getConfiguration()).thenReturn(configuration);
+        when(mockCluster.getConfiguration()).thenReturn(configuration);
         ProtocolOptions protocolOptions = mock(ProtocolOptions.class);
         when(configuration.getProtocolOptions()).thenReturn(protocolOptions);
+        when(configuration.getCodecRegistry()).thenReturn(codecRegistry);
     }
 
     @Test(groups = "unit", expectedExceptions = { IllegalArgumentException.class })
     public void should_fail_if_too_many_variables() {
         List<Object> args = Collections.nCopies(1 << 16, (Object)1);
-        new SimpleStatement("mock query", cluster, args.toArray());
+        new SimpleStatement("mock query",
+            mockCluster.getConfiguration().getProtocolOptions().getProtocolVersion(),
+            mockCluster.getConfiguration().getCodecRegistry(),
+            args.toArray());
     }
 
-    @Test(groups = "unit", expectedExceptions = { IllegalStateException.class })
-    public void should_throw_ISE_if_getObject_called_on_statement_without_values() {
-        new SimpleStatement("doesn't matter", cluster).getObject(0);
+    @Test(groups = "unit", expectedExceptions = { IllegalArgumentException.class })
+    public void should_throw_IAE_if_getObject_called_on_statement_without_values() {
+        new SimpleStatement("doesn't matter",
+            mockCluster.getConfiguration().getProtocolOptions().getProtocolVersion(),
+            mockCluster.getConfiguration().getCodecRegistry()).getObject(0);
     }
 
-
-    @Test(groups = "unit", expectedExceptions = { IndexOutOfBoundsException.class })
-    public void should_throw_IOOBE_if_getObject_called_with_wrong_index() {
-        new SimpleStatement("doesn't matter", cluster, new Object()).getObject(1);
+    @Test(groups = "unit", expectedExceptions = { IllegalArgumentException.class })
+    public void should_throw_IAE_if_getObject_called_with_wrong_index() {
+        new SimpleStatement("doesn't matter",
+            mockCluster.getConfiguration().getProtocolOptions().getProtocolVersion(),
+            mockCluster.getConfiguration().getCodecRegistry(),
+            new Date()).getObject(1);
     }
 
     @Test(groups = "unit")
     public void should_return_object_at_ith_index() {
-        Object expected = new Object();
-        Object actual = new SimpleStatement("doesn't matter", cluster, expected).getObject(0);
+        Object expected = new Date();
+        Object actual = new SimpleStatement("doesn't matter",
+            mockCluster.getConfiguration().getProtocolOptions().getProtocolVersion(),
+            mockCluster.getConfiguration().getCodecRegistry(),
+            expected).getObject(0);
         assertThat(actual).isSameAs(expected);
     }
 }

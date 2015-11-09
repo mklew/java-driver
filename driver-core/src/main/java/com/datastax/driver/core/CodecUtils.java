@@ -23,8 +23,6 @@ import java.util.Set;
 import com.google.common.reflect.TypeParameter;
 import com.google.common.reflect.TypeToken;
 
-import com.datastax.driver.core.exceptions.InvalidTypeException;
-
 /**
  * A set of utility methods to deal with type conversion,
  * serialization, and to create {@link TypeToken} instances.
@@ -98,51 +96,6 @@ public final class CodecUtils {
                 setCodecRegistry(inner, codecRegistry);
             }
         }
-    }
-
-    /**
-     * Utility method to serialize user-provided values.
-     * <p>
-     * This method is useful in situations where there is no metadata available and the underlying CQL
-     * type for the values is not known.
-     * <p>
-     * This situation happens when a {@link SimpleStatement}
-     * or a {@link com.datastax.driver.core.querybuilder.BuiltStatement} (Query Builder) contain values;
-     * in these places, the driver has no way to determine the right CQL type to use.
-     * <p>
-     * This method performs a best-effort heuristic to guess which codec to use.
-     * Note that this is not particularly efficient as the codec registry needs to iterate over
-     * the registered codecs until it finds a suitable one.
-     *
-     * @param values The values to convert.
-     * @param protocolVersion The protocol version to use.
-     * @param codecRegistry The {@link CodecRegistry} to use.
-     * @return The converted values.
-     */
-    public static ByteBuffer[] convert(Object[] values, ProtocolVersion protocolVersion, CodecRegistry codecRegistry) {
-        ByteBuffer[] serializedValues = new ByteBuffer[values.length];
-        for (int i = 0; i < values.length; i++) {
-            Object value = values[i];
-            if (value == null) {
-                // impossible to locate the right codec when object is null,
-                // so forcing the result to null
-                serializedValues[i] = null;
-            } else {
-                if (value instanceof Token) {
-                    // bypass CodecRegistry for Token instances
-                    serializedValues[i] = ((Token)value).serialize(protocolVersion);
-                } else {
-                    try {
-                        TypeCodec<Object> codec = codecRegistry.codecFor(value);
-                        serializedValues[i] = codec.serialize(value, protocolVersion);
-                    } catch (Exception e) {
-                        // Catch and rethrow to provide a more helpful error message (one that include which value is bad)
-                        throw new InvalidTypeException(String.format("Value %d of type %s does not correspond to any CQL3 type", i, value.getClass()), e);
-                    }
-                }
-            }
-        }
-        return serializedValues;
     }
 
     /**

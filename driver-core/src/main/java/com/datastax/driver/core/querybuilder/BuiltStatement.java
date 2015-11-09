@@ -25,7 +25,6 @@ import com.datastax.driver.core.*;
 import com.datastax.driver.core.policies.RetryPolicy;
 
 import static com.datastax.driver.core.CodecUtils.compose;
-import static com.datastax.driver.core.CodecUtils.convert;
 
 /**
  * Common ancestor to the query builder built statements.
@@ -37,12 +36,10 @@ public abstract class BuiltStatement extends RegularStatement {
     private final List<ColumnMetadata> partitionKey;
     private final List<Object> routingKeyValues;
     final String keyspace;
-    private final ProtocolVersion protocolVersion;
-    private final CodecRegistry codecRegistry;
 
     private boolean dirty;
     private String cache;
-    private List<Object> values;
+//    private List<Object> values;
     Boolean isCounterOp;
     boolean hasNonIdempotentOps;
 
@@ -52,23 +49,21 @@ public abstract class BuiltStatement extends RegularStatement {
     private boolean forceNoValues;
 
     BuiltStatement(String keyspace, ProtocolVersion protocolVersion, CodecRegistry codecRegistry) {
+        super(protocolVersion, codecRegistry);
         this.partitionKey = null;
         this.routingKeyValues = null;
         this.keyspace = keyspace;
-        this.protocolVersion = protocolVersion;
-        this.codecRegistry = codecRegistry;
     }
 
     BuiltStatement(TableMetadata tableMetadata, ProtocolVersion protocolVersion, CodecRegistry codecRegistry) {
+        super(protocolVersion, codecRegistry);
         this.partitionKey = tableMetadata.getPartitionKey();
         this.routingKeyValues = Arrays.asList(new Object[tableMetadata.getPartitionKey().size()]);
         this.keyspace = escapeId(tableMetadata.getKeyspace().getName());
-        this.protocolVersion = protocolVersion;
-        this.codecRegistry = codecRegistry;
     }
 
     // Same as Metadata.escapeId, but we don't have access to it here.
-    protected String escapeId(String ident) {
+    static String escapeId(String ident) {
         // we don't need to escape if it's lowercase and match non-quoted CQL3 ids.
         return lowercaseId.matcher(ident).matches() ? ident : Metadata.quote(ident);
     }
@@ -79,42 +74,23 @@ public abstract class BuiltStatement extends RegularStatement {
         return cache;
     }
 
-    /**
-     * Returns the {@code i}th value as the Java type matching its CQL type.
-     *
-     * @param i the index to retrieve.
-     * @return the value of the {@code i}th value of this statement.
-     *
-     * @throws IllegalStateException if this statement does not have values.
-     * @throws IndexOutOfBoundsException if {@code i} is not a valid index for this object.
-     */
-    public Object getObject(int i) {
-        maybeRebuildCache();
-        if (values == null || values.isEmpty())
-            throw new IllegalStateException("This statement does not have values");
-        if (i < 0 || i >= values.size())
-            throw new ArrayIndexOutOfBoundsException(i);
-        return values.get(i);
-    }
-
     private void maybeRebuildCache() {
         if (!dirty && cache != null)
             return;
 
         StringBuilder sb;
-        values = null;
 
         if (hasBindMarkers || forceNoValues) {
             sb = buildQueryString(null);
         } else {
-            values = new ArrayList<Object>();
+            List<Object> values = new ArrayList<Object>();
             sb = buildQueryString(values);
 
             if (values.size() > 65535)
                 throw new IllegalArgumentException("Too many values for built statement, the maximum allowed is 65535");
-            
-            if (values.isEmpty())
-                values = null;
+
+            this.values.clear();
+            bind(values.toArray());
         }
 
         maybeAddSemicolon(sb);
@@ -180,26 +156,17 @@ public abstract class BuiltStatement extends RegularStatement {
         }
     }
 
-    CodecRegistry getCodecRegistry(){
-        return codecRegistry;
-    }
-
-    ProtocolVersion getProtocolVersion() {
-        return protocolVersion;
-    }
-
     @Override
     public ByteBuffer getRoutingKey() {
         if (routingKeyValues == null)
             return null;
         ByteBuffer[] routingKeyParts = new ByteBuffer[partitionKey.size()];
-        CodecRegistry codecRegistry = getCodecRegistry();
         for (int i = 0; i < partitionKey.size(); i++) {
             Object value = routingKeyValues.get(i);
             if(value == null)
                 return null;
             TypeCodec<Object> codec = codecRegistry.codecFor(partitionKey.get(i).getType(), value);
-            routingKeyParts[i] = codec.serialize(value, getProtocolVersion());
+            routingKeyParts[i] = codec.serialize(value, protocolVersion);
         }
         return routingKeyParts.length == 1
             ? routingKeyParts[0]
@@ -211,21 +178,22 @@ public abstract class BuiltStatement extends RegularStatement {
         return keyspace;
     }
 
-    /**
-     * {@inheritDoc}
-     * <p>
-     * Note: Calling this method may trigger the underlying {@link Cluster} initialization.
-     */
     @Override
-    public ByteBuffer[] getValues() {
+    public List<ByteBuffer> getValues() {
         maybeRebuildCache();
-        return values == null ? null : convert(values.toArray(), getProtocolVersion(), getCodecRegistry());
+        return super.getValues();
     }
 
     @Override
     public boolean hasValues() {
         maybeRebuildCache();
-        return values != null;
+        return super.hasValues();
+    }
+
+    @Override
+    public int valuesCount() {
+        maybeRebuildCache();
+        return super.valuesCount();
     }
 
     @Override
@@ -285,6 +253,12 @@ public abstract class BuiltStatement extends RegularStatement {
         return this;
     }
 
+    @Override
+    protected <V> Value<V> getInternal(Object key) {
+        maybeRebuildCache();
+        return super.getInternal(key);
+    }
+
     /**
      * An utility class to create a BuiltStatement that encapsulate another one.
      */
@@ -293,7 +267,7 @@ public abstract class BuiltStatement extends RegularStatement {
         T statement;
 
         ForwardingStatement(T statement) {
-            super((String)null, statement.getProtocolVersion(), statement.getCodecRegistry());
+            super((String)null, statement.protocolVersion, statement.codecRegistry);
             this.statement = statement;
         }
 
@@ -373,7 +347,7 @@ public abstract class BuiltStatement extends RegularStatement {
         }
 
         @Override
-        public ByteBuffer[] getValues() {
+        public List<ByteBuffer> getValues() {
             return statement.getValues();
         }
 

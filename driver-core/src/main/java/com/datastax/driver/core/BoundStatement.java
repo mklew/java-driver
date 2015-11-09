@@ -167,7 +167,7 @@ public class BoundStatement extends Statement implements SettableData<BoundState
      * @param values the values to bind to the variables of the newly created
      * BoundStatement. The first element of {@code values} will be bound to the
      * first bind variable, etc. It is legal to provide fewer values than the
-     * statement has bound variables. In that case, the remaining variable need
+     * statement has bound variables. In that case, the remaining variables need
      * to be bound before execution. If more values than variables are provided
      * however, an IllegalArgumentException wil be raised.
      * @return this bound statement.
@@ -221,6 +221,7 @@ public class BoundStatement extends Statement implements SettableData<BoundState
      *
      * @return the routing key for this statement or {@code null}.
      */
+    @Override
     public ByteBuffer getRoutingKey() {
         if (this.routingKey != null) {
             return this.routingKey;
@@ -351,42 +352,6 @@ public class BoundStatement extends Statement implements SettableData<BoundState
     @Override
     public BoundStatement setLong(String name, long v) {
         return wrapper.setLong(name, v);
-    }
-
-    /**
-     * Set the {@code i}th value to the provided date.
-     *
-     * @param i the index of the variable to set.
-     * @param v the value to set.
-     * @return this BoundStatement.
-     *
-     * @throws IndexOutOfBoundsException if {@code i < 0 || i >= this.preparedStatement().variables().size()}.
-     * @throws InvalidTypeException if column {@code i} is not of type TIMESTAMP.
-     * @deprecated deprecated in favor of {@link #setTimestamp(int, Date)}
-     */
-    @Deprecated
-    public BoundStatement setDate(int i, Date v) {
-        return wrapper.setTimestamp(i, v);
-    }
-
-    /**
-     * Sets the value for (all occurrences of) variable {@code name} to the
-     * provided date.
-     *
-     * @param name the name of the variable to set; if multiple variables
-     * {@code name} are prepared, all of them are set.
-     * @param v the value to set.
-     * @return this BoundStatement.
-     *
-     * @throws IllegalArgumentException if {@code name} is not a prepared
-     * variable, that is, if {@code !this.preparedStatement().variables().names().contains(name)}.
-     * @throws InvalidTypeException if (any occurrence of) {@code name} is
-     * not of type TIMESTAMP.
-     * @deprecated deprecated in favor of {@link #setTimestamp(String, Date)}
-     */
-    @Deprecated
-    public BoundStatement setDate(String name, Date v) {
-        return wrapper.setTimestamp(name, v);
     }
 
     /**
@@ -1399,14 +1364,17 @@ public class BoundStatement extends Statement implements SettableData<BoundState
             super(wrapped.statement.getPreparedId().protocolVersion, wrapped, size);
         }
 
+        @Override
         protected int[] getAllIndexesOf(String name) {
             return wrapped.statement.getVariables().getAllIdx(name);
         }
 
+        @Override
         protected DataType getType(int i) {
             return wrapped.statement.getVariables().getType(i);
         }
 
+        @Override
         protected String getName(int i) {
             return wrapped.statement.getVariables().getName(i);
         }

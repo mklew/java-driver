@@ -19,7 +19,11 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.datastax.driver.core.*;
+import static com.google.common.collect.Lists.newArrayListWithCapacity;
+
+import com.datastax.driver.core.CodecRegistry;
+import com.datastax.driver.core.ProtocolVersion;
+import com.datastax.driver.core.RegularStatement;
 
 /**
  * A built BATCH statement.
@@ -55,7 +59,7 @@ public class Batch extends BuiltStatement {
 
         if (!usings.usings.isEmpty()) {
             builder.append(" USING ");
-            Utils.joinAndAppend(builder, getCodecRegistry(), " AND ", usings.usings, variables);
+            Utils.joinAndAppend(builder, codecRegistry, " AND ", usings.usings, variables);
         }
         builder.append(' ');
 
@@ -105,10 +109,10 @@ public class Batch extends BuiltStatement {
         }
         else
         {
-            // For non-BuiltStatement, we cannot know if it includes a bind makers and we assume it does. In practice,
+            // For non-BuiltStatement, we cannot know if it includes a bind marker and we assume it does. In practice,
             // this means we will always serialize values as strings when there is non-BuiltStatement
             this.hasBindMarkers = true;
-            this.nonBuiltStatementValues += ((SimpleStatement)statement).valuesCount();
+            this.nonBuiltStatementValues += statement.valuesCount();
         }
 
         checkForBindMarkers(null);
@@ -117,7 +121,7 @@ public class Batch extends BuiltStatement {
     }
 
     @Override
-    public ByteBuffer[] getValues() {
+    public List<ByteBuffer> getValues() {
         // If there is some non-BuiltStatement inside the batch with values, we shouldn't
         // use super.getValues() since it will ignore the values of said non-BuiltStatement.
         // If that's the case, we just collects all those values (and we know
@@ -126,16 +130,11 @@ public class Batch extends BuiltStatement {
         if (nonBuiltStatementValues == 0)
             return super.getValues();
 
-        ByteBuffer[] values = new ByteBuffer[nonBuiltStatementValues];
-        int i = 0;
-        for (RegularStatement statement : statements)
-        {
+        List<ByteBuffer> values = newArrayListWithCapacity(nonBuiltStatementValues);
+        for (RegularStatement statement : statements) {
             if (statement instanceof BuiltStatement)
                 continue;
-
-            ByteBuffer[] statementValues = statement.getValues();
-            System.arraycopy(statementValues, 0, values, i, statementValues.length);
-            i += statementValues.length;
+            values.addAll(statement.getValues());
         }
         return values;
     }
