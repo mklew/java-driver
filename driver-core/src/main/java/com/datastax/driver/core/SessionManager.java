@@ -542,7 +542,7 @@ class SessionManager extends AbstractSession {
 
             String qString = rs.getQueryString();
 
-            Requests.QueryProtocolOptions options = new Requests.QueryProtocolOptions(consistency, values, false,
+            Requests.QueryProtocolOptions options = new Requests.QueryProtocolOptions(consistency, values, Collections.<String>emptyList(), false,
                                                                                       fetchSize, usedPagingState, serialConsistency, defaultTimestamp);
             request =  new Requests.Query(qString, options, statement.isTracing());
         } else if (statement instanceof BoundStatement) {
@@ -554,7 +554,7 @@ class SessionManager extends AbstractSession {
             if (version.compareTo(ProtocolVersion.V4) < 0)
                 bs.ensureAllSet();
             boolean skipMetadata = version != ProtocolVersion.V1 && bs.statement.getPreparedId().resultSetMetadata != null;
-            Requests.QueryProtocolOptions options = new Requests.QueryProtocolOptions(consistency, Arrays.asList(bs.wrapper.values), skipMetadata,
+            Requests.QueryProtocolOptions options = new Requests.QueryProtocolOptions(consistency, Arrays.asList(bs.wrapper.values), Collections.<String>emptyList(), skipMetadata,
                                                                                       fetchSize, usedPagingState, serialConsistency, defaultTimestamp);
             request = new Requests.Execute(bs.statement.getPreparedId().id, options, statement.isTracing());
         } else {
