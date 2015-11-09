@@ -344,6 +344,15 @@ abstract class CBUtil { // TODO rename
             CBUtil.writeValue(value, cb);
     }
 
+    public static void writeNamedValueList(List<ByteBuffer> values, List<String> valueNames, ByteBuf cb) {
+        assert values.size() == valueNames.size();
+        cb.writeShort(values.size());
+        for (int i = 0; i < values.size(); i++) {
+            CBUtil.writeString(valueNames.get(i), cb);
+            CBUtil.writeValue(values.get(i), cb);
+        }
+    }
+
     public static int sizeOfValueList(List<ByteBuffer> values) {
         int size = 2;
         for (ByteBuffer value : values)
