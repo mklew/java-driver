@@ -19,6 +19,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.collect.ImmutableMap;
@@ -166,6 +167,18 @@ public class SimpleStatementTest {
         assertThat(statement.isSet("foo")).isTrue();
         statement.unset("foo");
         assertThat(statement.isSet("foo")).isFalse();
+    }
+
+    @Test(groups = "unit")
+    public void should_set_bytes_unsafe_using_positional_parameters(){
+        statement.setBytesUnsafe(0, ByteBuffer.allocate(4).putInt(0, 42));
+        assertThat(statement.getBytesUnsafe(0).getInt()).isEqualTo(42);
+    }
+
+    @Test(groups = "unit")
+    public void should_set_bytes_unsafe_using_named_parameters(){
+        statement.setBytesUnsafe("foo", ByteBuffer.allocate(4).putInt(0, 42));
+        assertThat(statement.getBytesUnsafe("foo").getInt()).isEqualTo(42);
     }
 
     @Test(groups = "unit")
