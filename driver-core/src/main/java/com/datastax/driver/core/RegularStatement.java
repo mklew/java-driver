@@ -111,6 +111,8 @@ public abstract class RegularStatement extends Statement implements GettableData
 
     /**
      * The values to use for this statement.
+     * This method returns an empty list if
+     * there are no values in this statement
      * <p>
      * Note: Values for a RegularStatement (i.e. if this method does not return
      * an empty list) are not supported with the native protocol version 1: you
@@ -119,7 +121,8 @@ public abstract class RegularStatement extends Statement implements GettableData
      * 1 through {@link Cluster.Builder#withProtocolVersion} or you use
      * Cassandra 1.2).
      *
-     * @return The values to use for this statement.
+     * @return The values to use for this statement; or an empty list,
+     * if this statement has no values.
      */
     public List<ByteBuffer> getValues() {
         List<ByteBuffer> bbs = newArrayListWithCapacity(values.size());
@@ -131,8 +134,8 @@ public abstract class RegularStatement extends Statement implements GettableData
 
     /**
      * The value names to use for this statement.
-     * This will return an empty list if
-     * there are not values in this statement,
+     * This method returns an empty list if
+     * there are no values in this statement,
      * or if positional parameters are being
      * used.
      *
