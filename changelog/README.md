@@ -8,6 +8,7 @@
 - [improvement] Pass the authenticator name from the server to the auth provider (JAVA-885) 
 - [improvement] Raise an exception when an older version of guava (<16.01) is found (JAVA-961)
 - [bug] TypeCodec.parse() implementations should be case insensitive when checking for keyword NULL (JAVA-972)
+- [bug] QueryBuilder cannot handle collections containing function calls (JAVA-983)
 
 ### 3.0.0-alpha4
 

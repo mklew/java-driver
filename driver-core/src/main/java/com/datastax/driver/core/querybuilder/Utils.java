@@ -20,12 +20,12 @@ import java.math.BigInteger;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
-import com.datastax.driver.core.CodecRegistry;
-import com.datastax.driver.core.TypeCodec;
+import com.datastax.driver.core.*;
 
 // Static utilities private to the query builder
 abstract class Utils {
@@ -87,6 +87,12 @@ abstract class Utils {
             appendName(((CName)value).name, codecRegistry, sb);
         } else if (value instanceof RawString) {
             sb.append(value.toString());
+        } else if(value instanceof List && !isSerializable(value)) {
+            appendList((List<?>)value, codecRegistry, sb, variables);
+        } else if(value instanceof Set && !isSerializable(value)) {
+            appendSet((Set<?>)value, codecRegistry, sb, variables);
+        } else if(value instanceof Map && !isSerializable(value)) {
+            appendMap((Map<?,?>)value, codecRegistry, sb, variables);
         } else if (variables == null || isForceAppendToQueryString(value)) {
             // we are not collecting statement values (variables == null)
             // or the value is meant to be forcefully appended to the query string:
@@ -101,6 +107,74 @@ abstract class Utils {
             variables.add(value);
             return sb;
         }
+        return sb;
+    }
+
+    /**
+     * Return true if the given value is likely to find a suitable codec
+     * to be serialized as a query parameter.
+     * If the value is not serializable, it must be included in the query string.
+     * Non serializable values include special values such as function calls,
+     * column names and bind markers, and collections thereof.
+     *
+     * @param value the value to inspect.
+     * @return true if the value is serializable, false otherwise.
+     */
+    static boolean isSerializable(Object value) {
+        if (value instanceof FCall)
+            return false;
+        if(value instanceof CName)
+             return false;
+        if(value instanceof BindMarker)
+            return false;
+        if(value instanceof RawString)
+            return false;
+        if (value instanceof Collection)
+            for (Object elt : (Collection)value)
+                if (!isSerializable(elt))
+                    return false;
+        if (value instanceof Map)
+            for (Map.Entry<?,?> entry : ((Map<?,?>)value).entrySet())
+                if (!isSerializable(entry.getKey()) || !isSerializable(entry.getValue()))
+                    return false;
+        return true;
+    }
+
+    private static StringBuilder appendList(List<?> l, CodecRegistry codecRegistry, StringBuilder sb, List<Object> variables) {
+        sb.append('[');
+        for (int i = 0; i < l.size(); i++) {
+            if (i > 0)
+                sb.append(',');
+            appendValue(l.get(i), codecRegistry, sb, variables);
+        }
+        sb.append(']');
+        return sb;
+    }
+
+    private static StringBuilder appendSet(Set<?> s, CodecRegistry codecRegistry, StringBuilder sb, List<Object> variables) {
+        sb.append('{');
+        boolean first = true;
+        for (Object elt : s) {
+            if (first) first = false; else sb.append(',');
+            appendValue(elt, codecRegistry, sb, variables);
+        }
+        sb.append('}');
+        return sb;
+    }
+
+    private static StringBuilder appendMap(Map<?, ?> m, CodecRegistry codecRegistry, StringBuilder sb, List<Object> variables) {
+        sb.append('{');
+        boolean first = true;
+        for (Map.Entry<?, ?> entry : m.entrySet()) {
+            if (first)
+                first = false;
+            else
+                sb.append(',');
+            appendValue(entry.getKey(), codecRegistry, sb, variables);
+            sb.append(':');
+            appendValue(entry.getValue(), codecRegistry, sb, variables);
+        }
+        sb.append('}');
         return sb;
     }
 
@@ -141,13 +215,6 @@ abstract class Utils {
             }
         }
         return true;
-    }
-
-    static boolean isRawValue(Object value) {
-        return value != null
-            && !(value instanceof FCall)
-            && !(value instanceof CName)
-            && !(value instanceof BindMarker);
     }
 
     static StringBuilder appendName(String name, StringBuilder sb) {

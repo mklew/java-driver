@@ -884,4 +884,45 @@ public class QueryBuilderTest {
         assertThat(actual).isSameAs(expected);
     }
 
+    @Test(groups = "unit")
+    @CassandraVersion(major = 2.1)
+    public void should_serialize_collections_of_serializable_elements() {
+        Set<Integer> set = Sets.newHashSet(1, 2, 3);
+        List<Integer> list = Lists.newArrayList(1, 2, 3);
+        Map<Integer, String> map = ImmutableMap.of(1, "foo");
+        BuiltStatement query = builder.insertInto("foo").value("v", set);
+        assertThat(query.getQueryString()).isEqualTo("INSERT INTO foo (v) VALUES (?);");
+        assertThat(query.getObject(0)).isEqualTo(set);
+        query = builder.insertInto("foo").value("v", list);
+        assertThat(query.getQueryString()).isEqualTo("INSERT INTO foo (v) VALUES (?);");
+        assertThat(query.getObject(0)).isEqualTo(list);
+        query = builder.insertInto("foo").value("v", map);
+        assertThat(query.getQueryString()).isEqualTo("INSERT INTO foo (v) VALUES (?);");
+        assertThat(query.getObject(0)).isEqualTo(map);
+    }
+
+    @Test(groups = "unit")
+    @CassandraVersion(major = 2.1)
+    public void should_not_attempt_to_serialize_function_calls_in_collections() {
+        BuiltStatement query = builder.insertInto("foo").value("v", Sets.newHashSet(fcall("func", 1)));
+        assertThat(query.getQueryString()).isEqualTo("INSERT INTO foo (v) VALUES ({func(1)});");
+        assertThat(query.getValues()).isNullOrEmpty();
+    }
+
+    @Test(groups = "unit")
+    @CassandraVersion(major = 2.1)
+    public void should_not_attempt_to_serialize_bind_markers_in_collections() {
+        BuiltStatement query = builder.insertInto("foo").value("v", Lists.newArrayList(1, 2, bindMarker()));
+        assertThat(query.getQueryString()).isEqualTo("INSERT INTO foo (v) VALUES ([1,2,?]);");
+        assertThat(query.getValues()).isNullOrEmpty();
+    }
+
+    @Test(groups = "unit")
+    @CassandraVersion(major = 2.1)
+    public void should_not_attempt_to_serialize_raw_values_in_collections() {
+        BuiltStatement query = builder.insertInto("foo").value("v", ImmutableMap.of(1, raw("x")));
+        assertThat(query.getQueryString()).isEqualTo("INSERT INTO foo (v) VALUES ({1:x});");
+        assertThat(query.getValues()).isNullOrEmpty();
+    }
+
 }

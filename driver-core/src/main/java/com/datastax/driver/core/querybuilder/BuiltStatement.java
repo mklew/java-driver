@@ -173,7 +173,7 @@ public abstract class BuiltStatement extends RegularStatement {
             return;
 
         for (int i = 0; i < partitionKey.size(); i++) {
-            if (name.equals(partitionKey.get(i).getName()) && Utils.isRawValue(value)) {
+            if (name.equals(partitionKey.get(i).getName()) && Utils.isSerializable(value)) {
                 routingKeyValues.set(i, value);
                 return;
             }
