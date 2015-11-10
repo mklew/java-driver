@@ -853,12 +853,26 @@ public abstract class RegularStatement extends Statement implements GettableData
 
     @Override
     public <V> RegularStatement set(int i, V v, TypeToken<V> targetType) {
-        return set(i, v, codecRegistry.codecFor(targetType));
+        // we must treat tuples and UDTs separately
+        // as they convey their own specific CQL types as well
+        DataType cqlType = null;
+        if (v instanceof TupleValue)
+            cqlType = ((TupleValue)v).getType();
+        if (v instanceof UDTValue)
+            cqlType = ((UDTValue)v).getType();
+        return set(i, v, codecRegistry.codecFor(cqlType, targetType));
     }
 
     @Override
     public <V> RegularStatement set(String name, V v, TypeToken<V> targetType) {
-        return set(name, v, codecRegistry.codecFor(targetType));
+        // we must treat tuples and UDTs separately
+        // as they convey their own specific CQL types as well
+        DataType cqlType = null;
+        if (v instanceof TupleValue)
+            cqlType = ((TupleValue)v).getType();
+        if (v instanceof UDTValue)
+            cqlType = ((UDTValue)v).getType();
+        return set(name, v, codecRegistry.codecFor(cqlType, targetType));
     }
 
     @Override
@@ -876,6 +890,7 @@ public abstract class RegularStatement extends Statement implements GettableData
 
     @SuppressWarnings("unchecked")
     protected <V> Value<V> getInternal(Object key) {
+        checkParameterMode(key);
         checkArgument(values.containsKey(key), "Parameter not set: %s", key);
         return (Value<V>)values.get(key);
     }
