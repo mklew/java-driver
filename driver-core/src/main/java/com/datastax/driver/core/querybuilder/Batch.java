@@ -45,8 +45,8 @@ public class Batch extends BuiltStatement {
         this.logged = logged;
         this.usings = new Options(this);
 
-        for (int i = 0; i < statements.length; i++)
-            add(statements[i]);
+        for (RegularStatement statement : statements)
+            add(statement);
     }
 
     @Override
@@ -63,22 +63,17 @@ public class Batch extends BuiltStatement {
         }
         builder.append(' ');
 
-        for (int i = 0; i < statements.size(); i++) {
-            RegularStatement stmt = statements.get(i);
+        for (RegularStatement stmt : statements) {
             if (stmt instanceof BuiltStatement) {
                 BuiltStatement bst = (BuiltStatement)stmt;
                 builder.append(maybeAddSemicolon(bst.buildQueryString(variables)));
-
             } else {
                 String str = stmt.getQueryString();
                 builder.append(str);
                 if (!str.trim().endsWith(";"))
                     builder.append(';');
-
-                // Note that we force hasBindMarkers if there is any non-BuiltStatement, so we know
-                // that we can only get there with variables == null
-                assert variables == null;
             }
+            builder.append(' ');
         }
         builder.append("APPLY BATCH;");
         return builder;
@@ -103,16 +98,17 @@ public class Batch extends BuiltStatement {
 
         this.statements.add(statement);
 
-        if (statement instanceof BuiltStatement)
-        {
-            this.hasBindMarkers |= ((BuiltStatement)statement).hasBindMarkers;
-        }
-        else
-        {
-            // For non-BuiltStatement, we cannot know if it includes a bind marker and we assume it does. In practice,
-            // this means we will always serialize values as strings when there is non-BuiltStatement
+        if (statement instanceof BuiltStatement) {
+            BuiltStatement builtStatement = (BuiltStatement)statement;
+            this.hasBindMarkers |= builtStatement.hasBindMarkers;
+        } else {
+            // For non-BuiltStatement, we cannot know if they include bind markers,
+            // so we assume they do.
+            // If that's the case, the user meant the whole statement to be prepared,
+            // and we shouldn't add our own markers.
+            // In practice, this means that the batch statement will never add its own
+            // bind markers as soon as at least one of its components is assumed to contain those.
             this.hasBindMarkers = true;
-            this.nonBuiltStatementValues += statement.valuesCount();
         }
 
         checkForBindMarkers(null);
@@ -122,21 +118,56 @@ public class Batch extends BuiltStatement {
 
     @Override
     public List<ByteBuffer> getValues() {
-        // If there is some non-BuiltStatement inside the batch with values, we shouldn't
-        // use super.getValues() since it will ignore the values of said non-BuiltStatement.
-        // If that's the case, we just collects all those values (and we know
-        // super.getValues() == null in that case since we've explicitely set this.hasBindMarker
-        // to true). Otherwise, we simply call super.getValues().
-        if (nonBuiltStatementValues == 0)
+        // if we don't have user-entered bind markers,
+        // all values will be collected at batch level
+        if (!hasBindMarkers)
             return super.getValues();
-
-        List<ByteBuffer> values = newArrayListWithCapacity(nonBuiltStatementValues);
+        // otherwise, at batch level we have no values,
+        // but some of the child statements might have those
+        List<ByteBuffer> values = newArrayListWithCapacity(valuesCount());
         for (RegularStatement statement : statements) {
+            // skip built statements as we don't want
+            // their values, they will be formatted as CQL literals instead
             if (statement instanceof BuiltStatement)
                 continue;
-            values.addAll(statement.getValues());
+            if (statement.hasValues())
+                values.addAll(statement.getValues());
         }
         return values;
+    }
+
+    @Override
+    public int valuesCount() {
+        // if we don't have user-entered bind markers,
+        // all values will be collected at batch level
+        if (!hasBindMarkers)
+            return super.valuesCount();
+        // otherwise, at batch level we have no values,
+        // but some of the child statements might have those
+        int count = 0;
+        for (RegularStatement statement : statements) {
+            // skip built statements as we don't want
+            // their values, they will be formatted as CQL literals instead
+            if (statement instanceof BuiltStatement)
+                continue;
+            if (statement.hasValues())
+                count += statement.valuesCount();
+        }
+        return count;
+    }
+
+    @Override
+    public boolean hasValues() {
+        // if we don't have user-entered bind markers,
+        // all values will be collected at batch level
+        if (!hasBindMarkers)
+            return super.hasValues();
+        // otherwise, at batch level we have no values,
+        // but some of the child statements might have those
+        for (RegularStatement statement : statements)
+            if (statement.hasValues())
+                return true;
+        return false;
     }
 
     /**
