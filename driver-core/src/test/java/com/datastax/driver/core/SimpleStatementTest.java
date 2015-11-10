@@ -44,6 +44,7 @@ public class SimpleStatementTest {
 
     ProtocolVersion protocolVersion = ProtocolVersion.V4;
     CodecRegistry codecRegistry = new CodecRegistry();
+    Token.Factory factory = Token.M3PToken.FACTORY;
 
     TupleType tupleType = new TupleType(Lists.newArrayList(cint(), varchar()), protocolVersion, codecRegistry);
     TupleValue tupleValue = new TupleValue(tupleType);
@@ -54,6 +55,8 @@ public class SimpleStatementTest {
     Map<Integer, String> map = ImmutableMap.of(1, "a", 2, "b");
     InetAddress inet = InetAddresses.forString("127.0.0.1");
     UUID uuid = UUID.randomUUID();
+    Token min = factory.fromString("-9223372036854775808");
+    Token max = factory.fromString("4611686018427387904");
 
     @BeforeMethod(groups = "unit")
     public void setup() {
@@ -110,6 +113,9 @@ public class SimpleStatementTest {
         assertThat(statement.setMap(1, map, Integer.class, String.class).getMap(1, Integer.class, String.class)).isEqualTo(map);
         assertThat(statement.setTupleValue(1, tupleValue).getTupleValue(1)).isEqualTo(tupleValue);
         assertThat(statement.setUDTValue(1, udtValue).getUDTValue(1)).isEqualTo(udtValue);
+        assertThat(statement.isSet(1)).isTrue();
+        statement.unset(1);
+        assertThat(statement.isSet(1)).isFalse();
     }
 
     @Test(groups = "unit")
@@ -137,6 +143,9 @@ public class SimpleStatementTest {
         assertThat(statement.setMap("foo", map, Integer.class, String.class).getMap("foo", Integer.class, String.class)).isEqualTo(map);
         assertThat(statement.setTupleValue("foo", tupleValue).getTupleValue("foo")).isEqualTo(tupleValue);
         assertThat(statement.setUDTValue("foo", udtValue).getUDTValue("foo")).isEqualTo(udtValue);
+        assertThat(statement.isSet("foo")).isTrue();
+        statement.unset("foo");
+        assertThat(statement.isSet("foo")).isFalse();
     }
 
     @Test(groups = "unit", dataProvider = "SimpleStatementTest")
@@ -144,6 +153,9 @@ public class SimpleStatementTest {
         assertThat(statement.set(1, expected, javaType).get(1, javaType)).isSameAs(expected);
         assertThat(statement.set(1, expected, javaType).getObject(1)).isSameAs(expected);
         assertThat(statement.setToNull(1).isNull(1)).isTrue();
+        assertThat(statement.isSet(1)).isTrue();
+        statement.unset(1);
+        assertThat(statement.isSet(1)).isFalse();
     }
 
     @Test(groups = "unit", dataProvider = "SimpleStatementTest")
@@ -151,6 +163,31 @@ public class SimpleStatementTest {
         assertThat(statement.set("foo", expected, javaType).get("foo", javaType)).isSameAs(expected);
         assertThat(statement.set("foo", expected, javaType).getObject("foo")).isSameAs(expected);
         assertThat(statement.setToNull("foo").isNull("foo")).isTrue();
+        assertThat(statement.isSet("foo")).isTrue();
+        statement.unset("foo");
+        assertThat(statement.isSet("foo")).isFalse();
+    }
+
+    @Test(groups = "unit")
+    public void should_set_token_using_positional_parameters(){
+        statement.setToken(0, min).setToken(1, max);
+        assertThat(statement.getBytesUnsafe(0)).isEqualTo(min.serialize(protocolVersion));
+        assertThat(statement.getBytesUnsafe(1)).isEqualTo(max.serialize(protocolVersion));
+    }
+
+    @Test(groups = "unit")
+    public void should_set_token_using_named_parameters(){
+        Token min = factory.fromString("-9223372036854775808");
+        Token max = factory.fromString("4611686018427387904");
+        statement.setToken("min", min).setToken("max", max);
+        assertThat(statement.getBytesUnsafe("min")).isEqualTo(min.serialize(protocolVersion));
+        assertThat(statement.getBytesUnsafe("max")).isEqualTo(max.serialize(protocolVersion));
+    }
+
+    @Test(groups = "unit")
+    public void should_set_token_using_single_partition_key_token(){
+        statement.setPartitionKeyToken(min);
+        assertThat(statement.getBytesUnsafe("partition key token")).isEqualTo(min.serialize(protocolVersion));
     }
 
     @Test(groups = "unit", expectedExceptions = { IllegalArgumentException.class })

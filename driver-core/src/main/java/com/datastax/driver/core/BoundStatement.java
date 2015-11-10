@@ -159,7 +159,7 @@ public class BoundStatement extends Statement implements SettableData<BoundState
     }
 
     /**
-     * Bound values to the variables of this statement.
+     * Bind values to the variables of this statement.
      *
      * This is a convenience method to bind all the variables of the
      * {@code BoundStatement} in one call.
