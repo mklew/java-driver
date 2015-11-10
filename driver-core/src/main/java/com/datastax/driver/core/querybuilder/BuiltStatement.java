@@ -53,6 +53,8 @@ public abstract class BuiltStatement extends RegularStatement {
         this.partitionKey = null;
         this.routingKeyValues = null;
         this.keyspace = keyspace;
+        if (protocolVersion == ProtocolVersion.V1)
+            setForceNoValues(true);
     }
 
     BuiltStatement(TableMetadata tableMetadata, ProtocolVersion protocolVersion, CodecRegistry codecRegistry) {
@@ -60,6 +62,8 @@ public abstract class BuiltStatement extends RegularStatement {
         this.partitionKey = tableMetadata.getPartitionKey();
         this.routingKeyValues = Arrays.asList(new Object[tableMetadata.getPartitionKey().size()]);
         this.keyspace = escapeId(tableMetadata.getKeyspace().getName());
+        if (protocolVersion == ProtocolVersion.V1)
+            setForceNoValues(true);
     }
 
     // Same as Metadata.escapeId, but we don't have access to it here.

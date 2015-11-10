@@ -527,12 +527,6 @@ class SessionManager extends AbstractSession {
         if (statement instanceof RegularStatement) {
             RegularStatement rs = (RegularStatement)statement;
 
-            // It saddens me that we special case for the query builder here, but for now this is simpler.
-            // We could provide a general API in RegularStatement instead at some point but it's unclear what's
-            // the cleanest way to do that is right now (and it's probably not really that useful anyway).
-            if (version == ProtocolVersion.V1 && rs instanceof com.datastax.driver.core.querybuilder.BuiltStatement)
-                ((com.datastax.driver.core.querybuilder.BuiltStatement)rs).setForceNoValues(true);
-
             List<ByteBuffer> values = rs.getValues();
             List<String> valueNames = rs.getValueNames();
             if (version == ProtocolVersion.V1 && !values.isEmpty())
