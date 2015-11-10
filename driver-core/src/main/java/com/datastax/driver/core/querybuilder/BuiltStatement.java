@@ -39,12 +39,13 @@ public abstract class BuiltStatement extends RegularStatement {
 
     private boolean dirty;
     private String cache;
-//    private List<Object> values;
     Boolean isCounterOp;
     boolean hasNonIdempotentOps;
 
-    // Whether the user has inputted bind markers. If that's the case, we never generate values as
+    // Whether the user has input bind markers. If that's the case, we never generate values as
     // it means the user meant for the statement to be prepared and we shouldn't add our own markers.
+    // In practice, setting this flag to true will cause all the values to be formatted as CQL literals
+    // in the query.
     boolean hasBindMarkers;
     private boolean forceNoValues;
 
