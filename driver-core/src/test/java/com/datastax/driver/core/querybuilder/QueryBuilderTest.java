@@ -415,9 +415,9 @@ public class QueryBuilderTest {
         Statement batch;
 
         query = "BEGIN BATCH USING TIMESTAMP 42 ";
-        query += "INSERT INTO foo (a,b) VALUES ({2,3,4},3.4);";
-        query += "UPDATE foo SET a[2]='foo',b=[3,2,1]+b,c=c-{'a'} WHERE k=2;";
-        query += "DELETE a[3],b['foo'],c FROM foo WHERE k=1;";
+        query += "INSERT INTO foo (a,b) VALUES ({2,3,4},3.4); ";
+        query += "UPDATE foo SET a[2]='foo',b=[3,2,1]+b,c=c-{'a'} WHERE k=2; ";
+        query += "DELETE a[3],b['foo'],c FROM foo WHERE k=1; ";
         query += "APPLY BATCH;";
         batch = builder.batch()
             .add(builder.insertInto("foo").values(new String[]{ "a", "b" }, new Object[]{ new TreeSet<Integer>() {{
@@ -432,7 +432,7 @@ public class QueryBuilderTest {
 
         // Test passing batch(statement)
         query = "BEGIN BATCH ";
-        query += "DELETE a[3] FROM foo WHERE k=1;";
+        query += "DELETE a[3] FROM foo WHERE k=1; ";
         query += "APPLY BATCH;";
         batch = builder.batch(builder.delete().listElt("a", 3).from("foo").where(eq("k", 1)));
         assertEquals(batch.toString(), query);
@@ -447,9 +447,9 @@ public class QueryBuilderTest {
 
         // Test value increments
         query = "BEGIN COUNTER BATCH USING TIMESTAMP 42 ";
-        query += "UPDATE foo SET a=a+1;";
-        query += "UPDATE foo SET b=b+2;";
-        query += "UPDATE foo SET c=c+3;";
+        query += "UPDATE foo SET a=a+1; ";
+        query += "UPDATE foo SET b=b+2; ";
+        query += "UPDATE foo SET c=c+3; ";
         query += "APPLY BATCH;";
         batch = builder.batch()
             .add(builder.update("foo").with(incr("a", 1)))
@@ -460,9 +460,9 @@ public class QueryBuilderTest {
 
         // Test single increments
         query = "BEGIN COUNTER BATCH USING TIMESTAMP 42 ";
-        query += "UPDATE foo SET a=a+1;";
-        query += "UPDATE foo SET b=b+1;";
-        query += "UPDATE foo SET c=c+1;";
+        query += "UPDATE foo SET a=a+1; ";
+        query += "UPDATE foo SET b=b+1; ";
+        query += "UPDATE foo SET c=c+1; ";
         query += "APPLY BATCH;";
         batch = builder.batch()
             .add(builder.update("foo").with(incr("a")))
@@ -473,9 +473,9 @@ public class QueryBuilderTest {
 
         // Test value decrements
         query = "BEGIN COUNTER BATCH USING TIMESTAMP 42 ";
-        query += "UPDATE foo SET a=a-1;";
-        query += "UPDATE foo SET b=b-2;";
-        query += "UPDATE foo SET c=c-3;";
+        query += "UPDATE foo SET a=a-1; ";
+        query += "UPDATE foo SET b=b-2; ";
+        query += "UPDATE foo SET c=c-3; ";
         query += "APPLY BATCH;";
         batch = builder.batch()
             .add(builder.update("foo").with(decr("a", 1)))
@@ -486,9 +486,9 @@ public class QueryBuilderTest {
 
         // Test single decrements
         query = "BEGIN COUNTER BATCH USING TIMESTAMP 42 ";
-        query += "UPDATE foo SET a=a-1;";
-        query += "UPDATE foo SET b=b-1;";
-        query += "UPDATE foo SET c=c-1;";
+        query += "UPDATE foo SET a=a-1; ";
+        query += "UPDATE foo SET b=b-1; ";
+        query += "UPDATE foo SET c=c-1; ";
         query += "APPLY BATCH;";
         batch = builder.batch()
             .add(builder.update("foo").with(decr("a")))
@@ -499,9 +499,9 @@ public class QueryBuilderTest {
 
         // Test negative decrements and negative increments
         query = "BEGIN COUNTER BATCH USING TIMESTAMP 42 ";
-        query += "UPDATE foo SET a=a+1;";
-        query += "UPDATE foo SET b=b+-2;";
-        query += "UPDATE foo SET c=c-3;";
+        query += "UPDATE foo SET a=a+1; ";
+        query += "UPDATE foo SET b=b+-2; ";
+        query += "UPDATE foo SET c=c-3; ";
         query += "APPLY BATCH;";
         batch = builder.batch()
             .add(builder.update("foo").with(decr("a", -1)))
