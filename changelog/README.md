@@ -3,7 +3,7 @@
 ### 2.1.10 (in progress)
 
 - [bug] JAVA-988: Metadata.handleId should handle escaped double quotes.
-
+- [improvement] JAVA-989: Include keyspace name when invalid replication found when generating token map.
 
 ### 2.1.9
 
