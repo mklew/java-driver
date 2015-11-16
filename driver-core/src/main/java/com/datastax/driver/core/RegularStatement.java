@@ -40,21 +40,33 @@ import static com.datastax.driver.core.CodecUtils.setOf;
  */
 public abstract class RegularStatement extends Statement implements GettableData, SettableData<RegularStatement> {
 
-    protected class Value<V> {
+    // TODO move to TypeTokens once this is merged with java846
+    private static final TypeToken<Object> OBJECT_TYPE = TypeToken.of(Object.class);
 
+    // A value that was set on the statement.
+    // Only values that were set with setBytesUnsafe are direct instances of this class, other setters produce TypedValues.
+    protected class Value {
+
+        // The serialized form that will be sent to Cassandra alongside the query
         final ByteBuffer bytes;
 
         Value(ByteBuffer bytes) {
             this.bytes = bytes;
         }
 
-        V as(TypeToken<V> javaType) {
-            if (javaType == null)
-                throw new UnsupportedOperationException("Cannot call getObject() on a parameter set with setBytesUnsafe()");
-            return codecRegistry.codecFor(javaType).deserialize(bytes, protocolVersion);
+        <V> V as(TypeToken<V> javaType) {
+            if (OBJECT_TYPE.equals(javaType)) { // we're handling a getObject() call
+                Object o = asObject();
+                @SuppressWarnings("unchecked")
+                V v = (V)o; // Since V is Object, this is a safe cast
+                return v;
+            } else { // we're handling a typed getter call
+                assert javaType != null;
+                return with(codecFor(javaType));
+            }
         }
 
-        V with(TypeCodec<V> codec) {
+        <V> V with(TypeCodec<V> codec) {
             return codec.deserialize(bytes, protocolVersion);
         }
 
@@ -62,25 +74,41 @@ public abstract class RegularStatement extends Statement implements GettableData
             return bytes == null || bytes.remaining() == 0;
         }
 
+        protected <V> TypeCodec<V> codecFor(TypeToken<V> javaType) {
+            return codecRegistry.codecFor(javaType);
+        }
+
+        protected Object asObject() {
+            // If the value was set with setBytesUnsafe, we don't have an original object to return, so by default
+            // return a copy of the buffer itself.
+            return bytes.duplicate();
+        }
+
     }
 
-    protected class TypedValue<V> extends Value<V> {
+    protected class TypedValue extends Value {
 
-        final V value;
+        // The original value that was set. We store it in order to return it from getObject().
+        private final Object original;
+        // The CQL type that was inferred when setting the value (will be null if the original value was null).
+        private final DataType cqlType;
 
-        TypedValue(ByteBuffer bytes, V value) {
+        TypedValue(ByteBuffer bytes, Object original, DataType cqlType) {
             super(bytes);
-            this.value = value;
+            this.original = original;
+            this.cqlType = cqlType;
         }
 
         @Override
-        V as(TypeToken<V> javaType) {
-            return value;
+        protected <V> TypeCodec<V> codecFor(TypeToken<V> javaType) {
+            return codecRegistry.codecFor(cqlType, javaType);
         }
 
         @Override
-        boolean isNull() {
-            return value == null;
+        protected Object asObject() {
+            // Note that, instead of storing the original object, we could also have deserialized bytes with the default codec
+            // for cqlType, but that might produce a different Java type, which would have been more confusing.
+            return original;
         }
 
     }
@@ -93,7 +121,7 @@ public abstract class RegularStatement extends Statement implements GettableData
 
     protected final CodecRegistry codecRegistry;
 
-    protected final SortedMap<Object, Value<?>> values = new TreeMap<Object, Value<?>>();
+    protected final SortedMap<Object, Value> values = new TreeMap<Object, Value>();
 
     private ParameterMode parameterMode = null;
 
@@ -126,7 +154,7 @@ public abstract class RegularStatement extends Statement implements GettableData
      */
     public List<ByteBuffer> getValues() {
         List<ByteBuffer> bbs = newArrayListWithCapacity(values.size());
-        for (Value<?> value : values.values()) {
+        for (Value value : values.values()) {
             bbs.add(value.bytes);
         }
         return bbs;
@@ -263,12 +291,12 @@ public abstract class RegularStatement extends Statement implements GettableData
 
     @Override
     public RegularStatement setToNull(int i) {
-        return setInternal(i, new TypedValue<Object>(null, null));
+        return setInternal(i, new TypedValue(null, null, null));
     }
 
     @Override
     public RegularStatement setToNull(String name) {
-        return setInternal(name, new TypedValue<Object>(null, null));
+        return setInternal(name, new TypedValue(null, null, null));
     }
 
     @Override
@@ -280,7 +308,6 @@ public abstract class RegularStatement extends Statement implements GettableData
     public boolean isNull(String name) {
         return getInternal(name).isNull();
     }
-
 
     @Override
     public ByteBuffer getBytesUnsafe(int i) {
@@ -294,15 +321,14 @@ public abstract class RegularStatement extends Statement implements GettableData
 
     @Override
     public RegularStatement setBytesUnsafe(int i, ByteBuffer v) {
-        return setInternal(i, new Value<Object>(v));
+        return setInternal(i, new Value(v));
     }
 
     @Override
     public RegularStatement setBytesUnsafe(String name, ByteBuffer v) {
-        return setInternal(name, new Value<Object>(v));
+        return setInternal(name, new Value(v));
     }
 
-    
     @Override
     public ByteBuffer getBytes(int i) {
         return get(i, ByteBuffer.class);
@@ -322,7 +348,6 @@ public abstract class RegularStatement extends Statement implements GettableData
     public RegularStatement setBytes(String name, ByteBuffer v) {
         return set(name, v, ByteBuffer.class);
     }
-
 
     @Override
     public boolean getBool(int i) {
@@ -344,7 +369,6 @@ public abstract class RegularStatement extends Statement implements GettableData
         return set(name, v, Boolean.class);
     }
 
-
     @Override
     public byte getByte(int i) {
         return get(i, Byte.class);
@@ -364,7 +388,6 @@ public abstract class RegularStatement extends Statement implements GettableData
     public RegularStatement setByte(String name, byte v) {
         return set(name, v, Byte.class);
     }
-
 
     @Override
     public short getShort(int i) {
@@ -386,7 +409,6 @@ public abstract class RegularStatement extends Statement implements GettableData
         return set(name, v, Short.class);
     }
 
-
     @Override
     public int getInt(int i) {
         return get(i, Integer.class);
@@ -406,7 +428,6 @@ public abstract class RegularStatement extends Statement implements GettableData
     public RegularStatement setInt(String name, int v) {
         return set(name, v, Integer.class);
     }
-
 
     @Override
     public long getLong(int i) {
@@ -428,7 +449,6 @@ public abstract class RegularStatement extends Statement implements GettableData
         return set(name, v, Long.class);
     }
 
-
     @Override
     public float getFloat(int i) {
         return get(i, Float.class);
@@ -448,7 +468,6 @@ public abstract class RegularStatement extends Statement implements GettableData
     public RegularStatement setFloat(String name, float v) {
         return set(name, v, Float.class);
     }
-
 
     @Override
     public double getDouble(int i) {
@@ -470,7 +489,6 @@ public abstract class RegularStatement extends Statement implements GettableData
         return set(name, v, Double.class);
     }
 
-
     @Override
     public BigInteger getVarint(int i) {
         return get(i, BigInteger.class);
@@ -488,10 +506,9 @@ public abstract class RegularStatement extends Statement implements GettableData
 
     @Override
     public RegularStatement setVarint(String name, BigInteger v) {
-        return set(name, v,BigInteger.class);
+        return set(name, v, BigInteger.class);
     }
 
-    
     @Override
     public BigDecimal getDecimal(int i) {
         return get(i, BigDecimal.class);
@@ -511,13 +528,12 @@ public abstract class RegularStatement extends Statement implements GettableData
     public RegularStatement setDecimal(String name, BigDecimal v) {
         return set(name, v, BigDecimal.class);
     }
-    
-    
+
     @Override
     public String getString(int i) {
         return get(i, String.class);
     }
-    
+
     @Override
     public String getString(String name) {
         return get(name, String.class);
@@ -532,7 +548,6 @@ public abstract class RegularStatement extends Statement implements GettableData
     public RegularStatement setString(String name, String v) {
         return set(name, v, String.class);
     }
-
 
     @Override
     public Date getTimestamp(int i) {
@@ -554,7 +569,6 @@ public abstract class RegularStatement extends Statement implements GettableData
         return set(name, v, Date.class);
     }
 
-    
     @Override
     public long getTime(int i) {
         return getLong(i);
@@ -575,7 +589,6 @@ public abstract class RegularStatement extends Statement implements GettableData
         return setLong(name, v);
     }
 
-    
     @Override
     public LocalDate getDate(int i) {
         return get(i, LocalDate.class);
@@ -596,7 +609,6 @@ public abstract class RegularStatement extends Statement implements GettableData
         return set(name, v, LocalDate.class);
     }
 
-    
     @Override
     public UUID getUUID(int i) {
         return get(i, UUID.class);
@@ -617,7 +629,6 @@ public abstract class RegularStatement extends Statement implements GettableData
         return set(name, v, UUID.class);
     }
 
-    
     @Override
     public InetAddress getInet(int i) {
         return get(i, InetAddress.class);
@@ -638,7 +649,6 @@ public abstract class RegularStatement extends Statement implements GettableData
         return set(name, v, InetAddress.class);
     }
 
-    
     @Override
     public UDTValue getUDTValue(int i) {
         return get(i, UDTValue.class);
@@ -658,8 +668,7 @@ public abstract class RegularStatement extends Statement implements GettableData
     public RegularStatement setUDTValue(String name, UDTValue v) {
         return set(name, v, UDTValue.class);
     }
-    
-    
+
     @Override
     public TupleValue getTupleValue(int i) {
         return get(i, TupleValue.class);
@@ -679,7 +688,6 @@ public abstract class RegularStatement extends Statement implements GettableData
     public RegularStatement setTupleValue(String name, TupleValue v) {
         return set(name, v, TupleValue.class);
     }
-
 
     @Override
     public <V> List<V> getList(int i, Class<V> elementsClass) {
@@ -734,7 +742,6 @@ public abstract class RegularStatement extends Statement implements GettableData
     public <E> RegularStatement setList(String name, List<E> v, TypeToken<E> elementsType) {
         return set(name, v, listOf(elementsType));
     }
-    
 
     @Override
     public <V> Set<V> getSet(int i, Class<V> elementsClass) {
@@ -790,7 +797,6 @@ public abstract class RegularStatement extends Statement implements GettableData
         return set(name, v, setOf(elementsType));
     }
 
-    
     @Override
     public <K, V> Map<K, V> getMap(int i, Class<K> keysClass, Class<V> valuesClass) {
         return getMap(i, TypeToken.of(keysClass), TypeToken.of(valuesClass));
@@ -845,18 +851,16 @@ public abstract class RegularStatement extends Statement implements GettableData
         return set(name, v, mapOf(keysType, valuesType));
     }
 
-    
     @Override
     public Object getObject(int i) {
-        return getInternal(i).as(null);
+        return getInternal(i).as(OBJECT_TYPE);
     }
 
     @Override
     public Object getObject(String name) {
-        return getInternal(name).as(null);
+        return getInternal(name).as(OBJECT_TYPE);
     }
 
-    
     @Override
     public <V> V get(int i, Class<V> targetClass) {
         return get(i, TypeToken.of(targetClass));
@@ -869,25 +873,25 @@ public abstract class RegularStatement extends Statement implements GettableData
 
     @Override
     public <V> V get(int i, TypeToken<V> targetType) {
-        Value<V> value = getInternal(i);
+        Value value = getInternal(i);
         return value.as(targetType);
     }
 
     @Override
     public <V> V get(String name, TypeToken<V> targetType) {
-        Value<V> value = getInternal(name);
+        Value value = getInternal(name);
         return value.as(targetType);
     }
 
     @Override
     public <V> V get(int i, TypeCodec<V> codec) {
-        Value<V> value = getInternal(i);
+        Value value = getInternal(i);
         return value.with(codec);
     }
 
     @Override
     public <V> V get(String name, TypeCodec<V> codec) {
-        Value<V> value = getInternal(name);
+        Value value = getInternal(name);
         return value.with(codec);
     }
 
@@ -928,15 +932,14 @@ public abstract class RegularStatement extends Statement implements GettableData
     @Override
     public <V> RegularStatement set(int i, V v, TypeCodec<V> codec) {
         ByteBuffer bytes = codec.serialize(v, protocolVersion);
-        return setInternal(i, new TypedValue<V>(bytes, v));
+        return setInternal(i, new TypedValue(bytes, v, codec.getCqlType()));
     }
 
     @Override
     public <V> RegularStatement set(String name, V v, TypeCodec<V> codec) {
         ByteBuffer bytes = codec.serialize(v, protocolVersion);
-        return setInternal(name, new TypedValue<V>(bytes, v));
+        return setInternal(name, new TypedValue(bytes, v, codec.getCqlType()));
     }
-
 
     /**
      * Sets the {@code i}th value to the provided {@link Token}.
@@ -1012,14 +1015,13 @@ public abstract class RegularStatement extends Statement implements GettableData
         return setToken("partition key token", v);
     }
 
-    @SuppressWarnings("unchecked")
-    protected <V> Value<V> getInternal(Object key) {
+    protected Value getInternal(Object key) {
         checkParameterMode(key);
         checkArgument(values.containsKey(key), "Parameter not set: %s", key);
-        return (Value<V>)values.get(key);
+        return values.get(key);
     }
 
-    protected <V> RegularStatement setInternal(Object key, Value<V> value) {
+    protected RegularStatement setInternal(Object key, Value value) {
         checkParameterMode(key);
         values.put(key, value);
         return this;

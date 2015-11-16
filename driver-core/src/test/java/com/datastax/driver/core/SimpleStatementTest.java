@@ -33,6 +33,8 @@ import org.testng.annotations.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.datastax.driver.core.exceptions.InvalidTypeException;
+
 import static com.datastax.driver.core.CodecUtils.listOf;
 import static com.datastax.driver.core.CodecUtils.mapOf;
 import static com.datastax.driver.core.CodecUtils.setOf;
@@ -44,13 +46,13 @@ public class SimpleStatementTest {
     SimpleStatement statement;
 
     ProtocolVersion protocolVersion = ProtocolVersion.V4;
-    CodecRegistry codecRegistry = new CodecRegistry();
+    CodecRegistry codecRegistry;
     Token.Factory factory = Token.M3PToken.FACTORY;
 
-    TupleType tupleType = new TupleType(Lists.newArrayList(cint(), varchar()), protocolVersion, codecRegistry);
-    TupleValue tupleValue = new TupleValue(tupleType);
-    UserType userType = new UserType("ks", "udt1", Lists.newArrayList(new UserType.Field("f1", cint()), new UserType.Field("f2", varchar())), protocolVersion, codecRegistry);
-    UDTValue udtValue = new UDTValue(userType);
+    TupleType tupleType;
+    TupleValue tupleValue;
+    UserType userType;
+    UDTValue udtValue;
     List<Integer> list = Lists.newArrayList(1, 2, 3);
     Set<String> set = Sets.newHashSet("a", "b", "c");
     Map<Integer, String> map = ImmutableMap.of(1, "a", 2, "b");
@@ -61,6 +63,14 @@ public class SimpleStatementTest {
 
     @BeforeMethod(groups = "unit")
     public void setup() {
+        codecRegistry = new CodecRegistry();
+
+        tupleType = new TupleType(Lists.newArrayList(cint(), varchar()), protocolVersion, codecRegistry);
+        tupleValue = new TupleValue(tupleType);
+
+        userType = new UserType("ks", "udt1", Lists.newArrayList(new UserType.Field("f1", cint()), new UserType.Field("f2", varchar())), protocolVersion, codecRegistry);
+        udtValue = new UDTValue(userType);
+
         statement = new SimpleStatement("doesn't matter", protocolVersion, codecRegistry);
     }
 
@@ -151,8 +161,8 @@ public class SimpleStatementTest {
 
     @Test(groups = "unit", dataProvider = "SimpleStatementTest")
     public <T> void should_set_and_retrieve_value_using_positional_parameters(T expected, TypeToken<T> javaType) {
-        assertThat(statement.set(1, expected, javaType).get(1, javaType)).isSameAs(expected);
-        assertThat(statement.set(1, expected, javaType).getObject(1)).isSameAs(expected);
+        assertThat(statement.set(1, expected, javaType).get(1, javaType)).isEqualTo(expected);
+        assertThat(statement.set(1, expected, javaType).getObject(1)).isEqualTo(expected);
         assertThat(statement.setToNull(1).isNull(1)).isTrue();
         assertThat(statement.isSet(1)).isTrue();
         statement.unset(1);
@@ -161,8 +171,8 @@ public class SimpleStatementTest {
 
     @Test(groups = "unit", dataProvider = "SimpleStatementTest")
     public <T> void should_set_and_retrieve_value_using_named_parameters(T expected, TypeToken<T> javaType) {
-        assertThat(statement.set("foo", expected, javaType).get("foo", javaType)).isSameAs(expected);
-        assertThat(statement.set("foo", expected, javaType).getObject("foo")).isSameAs(expected);
+        assertThat(statement.set("foo", expected, javaType).get("foo", javaType)).isEqualTo(expected);
+        assertThat(statement.set("foo", expected, javaType).getObject("foo")).isEqualTo(expected);
         assertThat(statement.setToNull("foo").isNull("foo")).isTrue();
         assertThat(statement.isSet("foo")).isTrue();
         statement.unset("foo");
@@ -179,6 +189,13 @@ public class SimpleStatementTest {
     public void should_set_bytes_unsafe_using_named_parameters(){
         statement.setBytesUnsafe("foo", ByteBuffer.allocate(4).putInt(0, 42));
         assertThat(statement.getBytesUnsafe("foo").getInt()).isEqualTo(42);
+    }
+
+    @Test(groups = "unit")
+    public void should_get_and_set_using_different_types_if_compatible() {
+        codecRegistry.register(new StringToCassandraIntCodec());
+        statement.setInt("foo", 42);
+        assertThat(statement.getString("foo")).isEqualTo("42");
     }
 
     @Test(groups = "unit")
@@ -224,4 +241,34 @@ public class SimpleStatementTest {
         statement.set("foo", null, Date.class).setToNull(1);
     }
 
+    private static class StringToCassandraIntCodec extends TypeCodec<String>  {
+
+        PrimitiveIntCodec intCodec = TypeCodec.cint();
+
+        StringToCassandraIntCodec() {
+            super(DataType.cint(), String.class);
+        }
+
+        @Override
+        public ByteBuffer serialize(String value, ProtocolVersion protocolVersion) throws InvalidTypeException {
+            int i = Integer.parseInt(value);
+            return intCodec.serialize(i, protocolVersion);
+        }
+
+        @Override
+        public String deserialize(ByteBuffer bytes, ProtocolVersion protocolVersion) throws InvalidTypeException {
+            Integer i = intCodec.deserialize(bytes, protocolVersion);
+            return i.toString();
+        }
+
+        @Override
+        public String parse(String value) throws InvalidTypeException {
+            throw new UnsupportedOperationException("not covered in this test");
+        }
+
+        @Override
+        public String format(String value) throws InvalidTypeException {
+            throw new UnsupportedOperationException("not covered in this test");
+        }
+    }
 }

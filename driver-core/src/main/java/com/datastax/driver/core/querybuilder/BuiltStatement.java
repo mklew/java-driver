@@ -259,7 +259,7 @@ public abstract class BuiltStatement extends RegularStatement {
     }
 
     @Override
-    protected <V> Value<V> getInternal(Object key) {
+    protected Value getInternal(Object key) {
         maybeRebuildCache();
         return super.getInternal(key);
     }
