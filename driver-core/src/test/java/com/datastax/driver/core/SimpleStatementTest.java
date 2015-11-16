@@ -162,7 +162,7 @@ public class SimpleStatementTest {
     @Test(groups = "unit", dataProvider = "SimpleStatementTest")
     public <T> void should_set_and_retrieve_value_using_positional_parameters(T expected, TypeToken<T> javaType) {
         assertThat(statement.set(1, expected, javaType).get(1, javaType)).isEqualTo(expected);
-        assertThat(statement.set(1, expected, javaType).getObject(1)).isEqualTo(expected);
+        assertThat(statement.set(1, expected, javaType).getObject(1)).isSameAs(expected);
         assertThat(statement.setToNull(1).isNull(1)).isTrue();
         assertThat(statement.isSet(1)).isTrue();
         statement.unset(1);
@@ -172,7 +172,7 @@ public class SimpleStatementTest {
     @Test(groups = "unit", dataProvider = "SimpleStatementTest")
     public <T> void should_set_and_retrieve_value_using_named_parameters(T expected, TypeToken<T> javaType) {
         assertThat(statement.set("foo", expected, javaType).get("foo", javaType)).isEqualTo(expected);
-        assertThat(statement.set("foo", expected, javaType).getObject("foo")).isEqualTo(expected);
+        assertThat(statement.set("foo", expected, javaType).getObject("foo")).isSameAs(expected);
         assertThat(statement.setToNull("foo").isNull("foo")).isTrue();
         assertThat(statement.isSet("foo")).isTrue();
         statement.unset("foo");
