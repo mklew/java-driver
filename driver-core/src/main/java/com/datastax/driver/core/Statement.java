@@ -431,6 +431,9 @@ public abstract class Statement {
      * {@link com.datastax.driver.core.querybuilder.QueryBuilder#raw(String)} anywhere in an inserted value,
      * the result will be {@code false}; otherwise it will be {@code true}.
      * In all cases, calling {@link #setIdempotent(boolean)} forces a value that overrides every other mechanism.
+     * <p>
+     * Idempotence configured in a Statement instance will be propagated to the PreparedStatements created from this
+     * Statement instance.
      *
      * @return whether this statement is idempotent, or {@code null} to use
      * {@link QueryOptions#getDefaultIdempotence()}.

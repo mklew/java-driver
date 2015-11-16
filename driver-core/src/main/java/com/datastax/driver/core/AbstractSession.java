@@ -111,7 +111,12 @@ public abstract class AbstractSession implements Session, AsyncInitSession {
                 if (statement.isTracing())
                     prepared.enableTracing();
                 prepared.setRetryPolicy(statement.getRetryPolicy());
-
+                if (prepared instanceof IdempotenceAwarePreparedStatement) {
+                    IdempotenceAwarePreparedStatement idempotenceAwarePS = (IdempotenceAwarePreparedStatement) prepared;
+                    if (statement.isIdempotent() != null) {
+                        idempotenceAwarePS.setIdempotent(statement.isIdempotent());
+                    }
+                }
                 return prepared;
             }
         });
